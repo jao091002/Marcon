@@ -1097,6 +1097,16 @@
   align-items: center;
   gap: 8px;
 }
+.employeeCartGroup {
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--canvas);
+}
+.employeeCartGroup h3 {
+  margin: 0;
+  font-size: 15px;
+}
 .employeeCartRow {
   display: flex;
   align-items: center;

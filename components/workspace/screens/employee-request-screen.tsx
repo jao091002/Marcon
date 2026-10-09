@@ -321,7 +321,7 @@ export function EmployeeRequestScreen({ routePart }: { routePart?: string }) {
     >
       <div className={styles.employeeCartHeading}>
         <div>
-          <span className={styles.sectionEyebrow}>SEU PEDIDO</span>
+          <span className={styles.sectionEyebrow}>PEDIDO DE {employeeName}</span>
           <h2 id="cart-title">
             Carrinho · {cart.length} {cart.length === 1 ? "item" : "itens"}
           </h2>
@@ -348,40 +348,45 @@ export function EmployeeRequestScreen({ routePart }: { routePart?: string }) {
           Seu carrinho está vazio. Escolha uma peça no catálogo para começar.
         </p>
       )}
-      {cart.map((entry, index) => {
-        const part = stock.find((piece) => piece.code === entry.code);
-        return (
-          <div
-            className={styles.employeeCartRow}
-            key={entry.code + "-" + index}
-          >
-            <div>
-              <strong>{part?.name ?? entry.code}</strong>
-              <small>
-                {entry.requestedUnit === "box"
-                  ? `${entry.requestedAmount} caixas · ${entry.quantity} peças`
-                  : `${entry.quantity} peças`}{" "}
-                · {entry.priority} · {part?.code ?? entry.code}
-              </small>
-              {entry.justification && (
-                <small>Justificativa: {entry.justification}</small>
-              )}
-            </div>
-            <button
-              type="button"
-              className={styles.outlineButton}
-              disabled={sending}
-              onClick={() =>
-                setCart((items) =>
-                  items.filter((_, itemIndex) => itemIndex !== index),
-                )
-              }
-            >
-              Remover
-            </button>
-          </div>
-        );
-      })}
+      {cart.length > 0 && (
+        <div className={styles.employeeCartGroup}>
+          <h3>Itens solicitados por {employeeName}</h3>
+          {cart.map((entry, index) => {
+            const part = stock.find((piece) => piece.code === entry.code);
+            return (
+              <div
+                className={styles.employeeCartRow}
+                key={entry.code + "-" + index}
+              >
+                <div>
+                  <strong>{part?.name ?? entry.code}</strong>
+                  <small>
+                    {entry.requestedUnit === "box"
+                      ? `${entry.requestedAmount} caixas · ${entry.quantity} peças`
+                      : `${entry.quantity} peças`}{" "}
+                    · {entry.priority} · {part?.code ?? entry.code}
+                  </small>
+                  {entry.justification && (
+                    <small>Justificativa: {entry.justification}</small>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className={styles.outlineButton}
+                  disabled={sending}
+                  onClick={() =>
+                    setCart((items) =>
+                      items.filter((_, itemIndex) => itemIndex !== index),
+                    )
+                  }
+                >
+                  Remover
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 
