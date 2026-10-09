@@ -55,13 +55,17 @@
 }
 .requesterGroups {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
+  align-items: start;
   gap: 24px;
   padding: 20px;
 }
 .requesterGroup {
   min-width: 0;
+  background: var(--surface, #fff);
   border: 1px solid var(--border, #dce2e8);
   border-radius: 14px;
+  box-shadow: 0 5px 18px color-mix(in srgb, var(--accent, #2563eb) 8%, transparent);
   overflow: hidden;
 }
 .requesterGroupHeading {
@@ -87,23 +91,48 @@
 }
 .requesterItems {
   display: grid;
+  gap: 10px;
+  padding: 12px;
 }
-.requesterItem {
+.requesterPreviewItem {
+  display: grid;
+  gap: 6px;
+  width: 100%;
   min-width: 0;
-  padding: 16px 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--border, #dce2e8);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+  text-align: left;
   overflow-wrap: anywhere;
+  cursor: pointer;
 }
-.requesterItem + .requesterItem {
-  border-top: 1px solid var(--border, #dce2e8);
+.requesterPreviewItem:hover,
+.requesterPreviewItem:focus-visible {
+  border-color: var(--accent, #2563eb);
+  outline: 2px solid color-mix(in srgb, var(--accent, #2563eb) 35%, transparent);
+  outline-offset: 1px;
 }
 .requesterItemMaterial {
   display: block;
-  margin-top: 10px;
+  margin-top: 3px;
   font-size: 16px;
 }
-.requesterItem p {
-  margin: 7px 0;
-  line-height: 1.5;
+.requesterPreviewItem > span:last-child {
+  color: var(--muted, #667085);
+  font-size: 13px;
+}
+.requesterMore {
+  justify-self: start;
+  padding: 8px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--accent, #2563eb);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
 }
 .groupOperations {
   display: grid;

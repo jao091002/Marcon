@@ -23,6 +23,7 @@ export function RequestWorkflowScreen({
   const [block, setBlock] = useState("");
   const [warehouse, setWarehouse] = useState("");
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
   const scopedRequests = requests.filter(
     (r) => role !== "funcionario" || (Boolean(accountId) && r.requesterId === accountId),
   );
@@ -81,6 +82,9 @@ export function RequestWorkflowScreen({
     return [...grouped.values()];
   }, [shown]);
   const selectedGroup = groups.find((group) => group.key === selectedGroupKey);
+  const selectedRequest = scopedRequests.find(
+    (request) => request.id === selectedRequestId,
+  );
   const title = history
     ? role === "funcionario"
       ? "Meu histórico"
@@ -229,87 +233,48 @@ export function RequestWorkflowScreen({
                   onClick={() => setSelectedGroupKey(group.key)}
                 >
                   {role === "lider"
-                    ? "Analisar pedidos desta pessoa"
+                    ? "Ver para aprovação (" + group.requests.length + ")"
                     : role === "almoxarifado"
-                      ? "Selecionar pedidos para entrega"
-                      : "Ver pedidos desta pessoa"}
+                      ? "Ver para entrega (" + group.requests.length + ")"
+                      : "Ver todos (" + group.requests.length + ")"}
                 </button>
               </div>
               <div className={styles.requesterItems}>
-                {group.requests.map((r) => (
-                  <article
+                {group.requests.slice(0, 3).map((r) => (
+                  <button
+                    type="button"
                     key={r.id}
                     data-request-id={r.id}
-                    data-priority={r.priority}
-                    className={styles.requesterItem}
+                    className={styles.requesterPreviewItem}
+                    onClick={() => {
+                      setSelectedGroupKey(null);
+                      setSelectedRequestId(r.id);
+                    }}
                   >
-                    <div className={styles.cardTop}>
+                    <span className={styles.cardTop}>
                       <strong>#{r.id}</strong>
                       {badge(r.status)}
-                      <strong
-                        className={`${styles.priority} ${styles[`priority${r.priority}`]}`}
-                      >
+                      <strong className={`${styles.priority} ${styles[`priority${r.priority}`]}`}>
                         {r.priority}
                       </strong>
-                    </div>
-                    <strong className={styles.requesterItemMaterial}>
-                      {r.material}
-                    </strong>
-                    <p>
+                    </span>
+                    <strong className={styles.requesterItemMaterial}>{r.material}</strong>
+                    <span>
                       {r.code} · {r.quantity} peças
-                      {r.requestedUnit === "box" &&
-                        ` (${r.requestedAmount} caixas de ${r.packSizeAtRequest})`}
-                    </p>
-                    <p>
-                      {r.block} ·{" "}
-                      {r.sector || "Setor não informado"}
-                    </p>
-                    {r.anomaly?.unusual && (
-                      <div className={styles.anomaly}>
-                        <strong>Pedido fora do padrão</strong>
-                        {r.anomaly.reasons.map((reason) => (
-                          <p key={reason}>{reason}</p>
-                        ))}
-                        <p>
-                          <strong>Justificativa:</strong>{" "}
-                          {r.justification || "Não registrada no pedido legado"}
-                        </p>
-                      </div>
-                    )}
-                    {!r.anomaly?.unusual && r.justification && (
-                      <p>
-                        <strong>Justificativa:</strong> {r.justification}
-                      </p>
-                    )}
-                    {r.status === "Rejeitada" && (
-                      <p>
-                        <strong>Motivo da rejeição:</strong>{" "}
-                        {r.cancellationReason}
-                      </p>
-                    )}
-                    {r.allocations?.map((a) => (
-                      <p key={a.warehouse}>
-                        {r.pickedAt
-                          ? "Retirada registrada"
-                          : "Retirada recomendada"}
-                        : {a.warehouse} · {a.location} · {a.quantity} peças
-                      </p>
-                    ))}
-                    {r.fulfilledBy && (
-                      <p>
-                        {r.fulfilledBy === accountId
-                          ? "Atendimento assumido por você"
-                          : `Responsável: matrícula ${r.fulfilledBy}`}
-                      </p>
-                    )}
-                    {r.deliveredAt && (
-                      <p>
-                        Entregue em{" "}
-                        {new Date(r.deliveredAt).toLocaleString("pt-BR")}
-                      </p>
-                    )}
-                  </article>
+                      {r.requestedUnit === "box" && ` (${r.requestedAmount} caixas de ${r.packSizeAtRequest})`}
+                    </span>
+                    <span>{r.block} · {r.sector || "Setor não informado"}</span>
+                  </button>
                 ))}
+                {group.requests.length > 3 && (
+                  <button
+                    type="button"
+                    className={styles.requesterMore}
+                    onClick={() => setSelectedGroupKey(group.key)}
+                  >
+                    + {group.requests.length - 3} pedidos · abrir grupo completo
+                  </button>
+                )}
               </div>
             </section>
           ))}
@@ -332,55 +297,67 @@ export function RequestWorkflowScreen({
         {selectedGroup && (
           <>
             <p>
-              {selectedGroup.requests.length}{" "}
-              {selectedGroup.requests.length === 1
-                ? "requisição agrupada"
-                : "requisições agrupadas"}{" "}
-              por solicitante. Cada item mantém seu status, quantidade,
-              conferência e registro próprios.
+              {selectedGroup.requests.length} pedidos agrupados. Toque em uma
+              requisição para abrir os detalhes completos.
             </p>
             <div className={styles.groupOperations}>
               {selectedGroup.requests.map((request) => (
                 <article className={styles.groupOperationItem} key={request.id}>
-                  <h3>
-                    #{request.id} · {request.material}
-                  </h3>
+                  <h3>#{request.id} · {request.material}</h3>
                   <p>
-                    {request.quantity} peças · {request.block} ·{" "}
-                    {request.status} · {request.priority}
+                    {request.code} · {request.quantity} peças · {request.block} · {request.status} · {request.priority}
                   </p>
-                  {history ? (
-                    <div className="ops-actions">
-                      <p>
-                        Entregue em{" "}
-                        {request.deliveredAt
-                          ? new Date(request.deliveredAt).toLocaleString(
-                              "pt-BR",
-                            )
-                          : "Data não registrada"}
-                      </p>
-                      <p>
-                        Justificativa:{" "}
-                        {request.justification || "Não informada"}
-                      </p>
-                      {request.allocations?.map((allocation) => (
-                        <p key={allocation.warehouse}>
-                          {allocation.quantity} peças retiradas de{" "}
-                          {allocation.warehouse} · {allocation.location}
-                        </p>
-                      ))}
-                    </div>
-                  ) : (
-                    <RequestOperations
-                      key={request.id}
-                      id={request.id}
-                      role={role}
-                      request={request}
-                    />
-                  )}
+                  <button
+                    className="button secondary"
+                    type="button"
+                    onClick={() => {
+                      setSelectedGroupKey(null);
+                      setSelectedRequestId(request.id);
+                    }}
+                  >
+                    Abrir requisição
+                  </button>
                 </article>
               ))}
             </div>
+          </>
+        )}
+      </DashboardDialog>
+      <DashboardDialog
+        compact
+        open={Boolean(selectedRequest)}
+        title={selectedRequest ? `Requisição #${selectedRequest.id}` : "Requisição"}
+        onClose={() => setSelectedRequestId(null)}
+      >
+        {selectedRequest && (
+          <>
+            <h3>{selectedRequest.material}</h3>
+            <p>
+              {selectedRequest.code} · {selectedRequest.quantity} peças · {selectedRequest.block} · {selectedRequest.person}
+            </p>
+            {history ? (
+              <div className="ops-actions">
+                <p>Prioridade: <strong>{selectedRequest.priority}</strong></p>
+                <p>
+                  Entregue em {selectedRequest.deliveredAt
+                    ? new Date(selectedRequest.deliveredAt).toLocaleString("pt-BR")
+                    : "Data não registrada"}
+                </p>
+                <p>Justificativa: {selectedRequest.justification || "Não informada"}</p>
+                {selectedRequest.allocations?.map((allocation) => (
+                  <p key={allocation.warehouse}>
+                    {allocation.quantity} peças retiradas de {allocation.warehouse} · {allocation.location}
+                  </p>
+                ))}
+              </div>
+            ) : (
+              <RequestOperations
+                key={selectedRequest.id}
+                id={selectedRequest.id}
+                role={role}
+                request={selectedRequest}
+              />
+            )}
           </>
         )}
       </DashboardDialog>
