@@ -18,6 +18,7 @@ export function RequestWorkflowScreen({
 }) {
   const { requests, accountId } = useDemoStore();
   const [query, setQuery] = useState("");
+  const [requesterQuery, setRequesterQuery] = useState("");
   const [status, setStatus] = useState("Todas");
   const [priority, setPriority] = useState("");
   const [block, setBlock] = useState("");
@@ -49,6 +50,17 @@ export function RequestWorkflowScreen({
           r.allocations?.some(
             (allocation) => allocation.warehouse === warehouse,
           )) &&
+        r.person
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLocaleLowerCase("pt-BR")
+          .includes(
+            requesterQuery
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .trim()
+              .toLocaleLowerCase("pt-BR"),
+          ) &&
         `${r.id} ${r.material} ${r.code} ${r.person} ${r.block}`
           .toLowerCase()
           .includes(query.toLowerCase()),
@@ -153,6 +165,15 @@ export function RequestWorkflowScreen({
       )}
       <section className="panel">
         <div className={styles.filters}>
+          <label>
+            Pesquisar solicitante
+            <input
+              type="search"
+              value={requesterQuery}
+              onChange={(e) => setRequesterQuery(e.target.value)}
+              placeholder="Nome ou parte do nome"
+            />
+          </label>
           <label>
             Buscar pedido
             <input
