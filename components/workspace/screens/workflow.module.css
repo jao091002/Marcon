@@ -85,6 +85,26 @@
   margin-top: 4px;
   color: var(--muted, #667085);
 }
+.requesterItems {
+  display: grid;
+}
+.requesterItem {
+  min-width: 0;
+  padding: 16px 20px;
+  overflow-wrap: anywhere;
+}
+.requesterItem + .requesterItem {
+  border-top: 1px solid var(--border, #dce2e8);
+}
+.requesterItemMaterial {
+  display: block;
+  margin-top: 10px;
+  font-size: 16px;
+}
+.requesterItem p {
+  margin: 7px 0;
+  line-height: 1.5;
+}
 .groupOperations {
   display: grid;
   gap: 16px;

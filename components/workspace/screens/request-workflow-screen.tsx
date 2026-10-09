@@ -65,9 +65,11 @@ export function RequestWorkflowScreen({
       { key: string; person: string; requests: typeof shown }
     >();
     for (const request of shown) {
-      const identity = request.requesterId
-        ? `requester:${request.requesterId}`
-        : `person:${request.person.trim().toLocaleLowerCase("pt-BR")}`;
+      const identity = `person:${request.person
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLocaleLowerCase("pt-BR")}`;
       const group = grouped.get(identity) ?? {
         key: identity,
         person: request.person,
@@ -233,13 +235,13 @@ export function RequestWorkflowScreen({
                       : "Ver pedidos desta pessoa"}
                 </button>
               </div>
-              <div className={styles.cards}>
+              <div className={styles.requesterItems}>
                 {group.requests.map((r) => (
                   <article
                     key={r.id}
                     data-request-id={r.id}
                     data-priority={r.priority}
-                    className={styles.card}
+                    className={styles.requesterItem}
                   >
                     <div className={styles.cardTop}>
                       <strong>#{r.id}</strong>
@@ -250,14 +252,16 @@ export function RequestWorkflowScreen({
                         {r.priority}
                       </strong>
                     </div>
-                    <h2>{r.material}</h2>
+                    <strong className={styles.requesterItemMaterial}>
+                      {r.material}
+                    </strong>
                     <p>
                       {r.code} · {r.quantity} peças
                       {r.requestedUnit === "box" &&
                         ` (${r.requestedAmount} caixas de ${r.packSizeAtRequest})`}
                     </p>
                     <p>
-                      {r.person} · {r.block} ·{" "}
+                      {r.block} ·{" "}
                       {r.sector || "Setor não informado"}
                     </p>
                     {r.anomaly?.unusual && (
@@ -304,18 +308,6 @@ export function RequestWorkflowScreen({
                         {new Date(r.deliveredAt).toLocaleString("pt-BR")}
                       </p>
                     )}
-                    <button
-                      className="button primary"
-                      onClick={() => setSelectedGroupKey(group.key)}
-                    >
-                      {history
-                        ? "Ver entrega"
-                        : role === "lider"
-                          ? "Analisar solicitação"
-                          : role === "funcionario"
-                            ? "Ver meu pedido"
-                            : "Abrir atendimento"}
-                    </button>
                   </article>
                 ))}
               </div>
