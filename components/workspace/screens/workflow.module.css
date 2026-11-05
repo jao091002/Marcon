@@ -428,3 +428,39 @@
     padding: 16px;
   }
 }
+.requesterToggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.requesterToggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent, #2563eb) 45%, transparent);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+.requesterChevron {
+  margin-left: auto;
+  color: var(--muted, #667085);
+  transition: transform 0.2s ease;
+}
+.requesterGroup[data-open="true"] .requesterChevron {
+  transform: rotate(180deg);
+}
+.bulkBar {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  margin: 12px 0;
+}
+.bulkBar p {
+  margin: 0;
+}

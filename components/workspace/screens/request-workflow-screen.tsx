@@ -16,7 +16,7 @@ export function RequestWorkflowScreen({
   history?: boolean;
   compact?: boolean;
 }) {
-  const { requests, accountId } = useDemoStore();
+  const { requests, accountId, runAction } = useDemoStore();
   const [query, setQuery] = useState("");
   const [requesterQuery, setRequesterQuery] = useState("");
   const [status, setStatus] = useState("Todas");
@@ -25,6 +25,15 @@ export function RequestWorkflowScreen({
   const [warehouse, setWarehouse] = useState("");
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState("");
+  const toggleGroup = (key: string) =>
+    setOpenGroups((current) => {
+      const next = new Set(current);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
   const scopedRequests = requests.filter(
     (r) => role !== "funcionario" || (Boolean(accountId) && r.requesterId === accountId),
   );
@@ -97,6 +106,67 @@ export function RequestWorkflowScreen({
   const selectedRequest = scopedRequests.find(
     (request) => request.id === selectedRequestId,
   );
+  async function deliverAll(group: (typeof groups)[number]) {
+    const deliverable = group.requests.filter(
+      (request) =>
+        request.status === "Aprovada" ||
+        (["Em separação", "Em entrega"].includes(request.status) &&
+          request.fulfilledBy === accountId),
+    );
+    if (!deliverable.length) {
+      setBulkMessage(
+        "Nenhuma requisição deste solicitante está disponível para você entregar.",
+      );
+      return;
+    }
+    if (
+      !window.confirm(
+        `Entregar ${deliverable.length} requisição(ões) de ${group.person}? ` +
+          "O código e a quantidade de cada item serão considerados conferidos e o estoque será baixado.",
+      )
+    )
+      return;
+    setBulkBusy(true);
+    setBulkMessage("");
+    let done = 0;
+    try {
+      for (const request of deliverable) {
+        if (request.status === "Aprovada")
+          await runAction({ type: "claimRequest", id: request.id });
+        if (request.status !== "Em entrega") {
+          const prepared = await runAction({
+            type: "preparePick",
+            id: request.id,
+            qrCode: request.code,
+            confirmedQuantity: request.quantity,
+          });
+          await runAction({
+            type: "confirmPick",
+            id: request.id,
+            qrCode: request.code,
+            confirmedQuantity: request.quantity,
+            confirmation: String(prepared?.confirmation ?? ""),
+          });
+        }
+        await runAction({
+          type: "changeRequestStatus",
+          id: request.id,
+          status: "Entregue",
+        });
+        done += 1;
+      }
+      setBulkMessage(`${done} requisição(ões) entregue(s).`);
+      setSelectedGroupKey(null);
+    } catch (error) {
+      setBulkMessage(
+        `${done} de ${deliverable.length} entregue(s). Interrompido na #${deliverable[done].id}: ${
+          error instanceof Error ? error.message : "falha na operação."
+        }`,
+      );
+    } finally {
+      setBulkBusy(false);
+    }
+  }
   const title = history
     ? role === "funcionario"
       ? "Meu histórico"
@@ -237,78 +307,83 @@ export function RequestWorkflowScreen({
         </div>
         <div className={styles.requesterGroups}>
           {groups.map((group) => (
-            <section className={styles.requesterGroup} key={group.key}>
+            <section
+              className={styles.requesterGroup}
+              key={group.key}
+              data-open={openGroups.has(group.key)}
+            >
               <div className={styles.requesterGroupHeading}>
-                <span className={styles.requesterAvatar} aria-hidden="true">
-                  {group.person
-                    .split(/\s+/)
-                    .filter(Boolean)
-                    .slice(0, 2)
-                    .map((part) => part[0])
-                    .join("")
-                    .toLocaleUpperCase("pt-BR")}
-                </span>
-                <div className={styles.requesterIdentity}>
-                  <h2>{group.person}</h2>
-                  <p>
-                    {group.requests.length}{" "}
-                    {group.requests.length === 1 ? "requisição" : "requisições"}
-                    {group.requests.some((request) => request.priority === "Urgente") &&
-                      ` · ${group.requests.filter((request) => request.priority === "Urgente").length} urgente(s)`}
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  className={styles.requesterToggle}
+                  aria-expanded={openGroups.has(group.key)}
+                  aria-controls={`grupo-${group.key}`}
+                  onClick={() => toggleGroup(group.key)}
+                >
+                  <span className={styles.requesterAvatar} aria-hidden="true">
+                    {group.person
+                      .split(/\s+/)
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .map((part) => part[0])
+                      .join("")
+                      .toLocaleUpperCase("pt-BR")}
+                  </span>
+                  <span className={styles.requesterIdentity}>
+                    <h2>{group.person}</h2>
+                    <p>
+                      {group.requests.length}{" "}
+                      {group.requests.length === 1 ? "requisição" : "requisições"}
+                      {group.requests.some((request) => request.priority === "Urgente") &&
+                        ` · ${group.requests.filter((request) => request.priority === "Urgente").length} urgente(s)`}
+                    </p>
+                  </span>
+                  <span className={styles.requesterChevron} aria-hidden="true">▾</span>
+                </button>
                 <button
                   className={styles.requesterAction}
                   type="button"
                   onClick={() => setSelectedGroupKey(group.key)}
                 >
                   {role === "lider"
-                    ? "Aprovar"
+                    ? "Ver para aprovação (" + group.requests.length + ")"
                     : role === "almoxarifado"
-                      ? "Entregar"
-                      : "Ver todos"}
-                  <span aria-hidden="true">→</span>
+                      ? "Ver para entrega (" + group.requests.length + ")"
+                      : "Ver todos (" + group.requests.length + ")"}
                 </button>
               </div>
-              <div className={styles.requesterItems}>
-                {group.requests.slice(0, 3).map((r) => (
-                  <button
-                    type="button"
-                    key={r.id}
-                    data-request-id={r.id}
-                    className={styles.requesterPreviewItem}
-                    data-priority={r.priority}
-                    onClick={() => {
-                      setSelectedGroupKey(null);
-                      setSelectedRequestId(r.id);
-                    }}
-                  >
-                    <span className={styles.itemMain}>
-                      <strong className={styles.requesterItemMaterial}>{r.material}</strong>
-                      <span className={styles.itemMeta}>
-                        #{r.id} · {r.code} · {r.quantity} peças
-                        {r.requestedUnit === "box" && ` (${r.requestedAmount} cx de ${r.packSizeAtRequest})`}
-                        {" · "}{r.block}
+              {openGroups.has(group.key) && (
+                <div className={styles.requesterItems} id={`grupo-${group.key}`}>
+                  {group.requests.map((r) => (
+                    <button
+                      type="button"
+                      key={r.id}
+                      data-request-id={r.id}
+                      className={styles.requesterPreviewItem}
+                      data-priority={r.priority}
+                      onClick={() => {
+                        setSelectedGroupKey(null);
+                        setSelectedRequestId(r.id);
+                      }}
+                    >
+                      <span className={styles.itemMain}>
+                        <strong className={styles.requesterItemMaterial}>{r.material}</strong>
+                        <span className={styles.itemMeta}>
+                          #{r.id} · {r.code} · {r.quantity} peças
+                          {r.requestedUnit === "box" && ` (${r.requestedAmount} cx de ${r.packSizeAtRequest})`}
+                          {" · "}{r.block}
+                        </span>
                       </span>
-                    </span>
-                    <span className={styles.itemSide}>
-                      <span className={`${styles.priorityDot} ${styles[`priority${r.priority}`]}`}>
-                        {r.priority}
+                      <span className={styles.itemSide}>
+                        <span className={`${styles.priorityDot} ${styles[`priority${r.priority}`]}`}>
+                          {r.priority}
+                        </span>
+                        {badge(r.status)}
                       </span>
-                      {badge(r.status)}
-                    </span>
-                  </button>
-                ))}
-                {group.requests.length > 3 && (
-                  <button
-                    type="button"
-                    className={styles.requesterMore}
-                    onClick={() => setSelectedGroupKey(group.key)}
-                  >
-                    + {group.requests.length - 3} {group.requests.length - 3 === 1 ? "pedido" : "pedidos"} · ver todos
-                  </button>
-                )}
-              </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </section>
           ))}
         </div>
@@ -325,7 +400,10 @@ export function RequestWorkflowScreen({
       <DashboardDialog
         open={Boolean(selectedGroup)}
         title={selectedGroup ? `Pedidos de ${selectedGroup.person}` : "Pedidos"}
-        onClose={() => setSelectedGroupKey(null)}
+        onClose={() => {
+          setSelectedGroupKey(null);
+          setBulkMessage("");
+        }}
       >
         {selectedGroup && (
           <>
@@ -333,6 +411,19 @@ export function RequestWorkflowScreen({
               {selectedGroup.requests.length} pedidos agrupados. Toque em uma
               requisição para abrir os detalhes completos.
             </p>
+            {role === "almoxarifado" && !history && (
+              <div className={styles.bulkBar}>
+                <button
+                  className="button primary"
+                  type="button"
+                  disabled={bulkBusy}
+                  onClick={() => void deliverAll(selectedGroup)}
+                >
+                  {bulkBusy ? "Entregando…" : "Entregar todas as requisições"}
+                </button>
+                {bulkMessage && <p role="status">{bulkMessage}</p>}
+              </div>
+            )}
             <div className={styles.groupOperations}>
               {selectedGroup.requests.map((request) => (
                 <article className={styles.groupOperationItem} key={request.id}>
