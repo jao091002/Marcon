@@ -28,6 +28,7 @@ export function RequestWorkflowScreen({
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkMessage, setBulkMessage] = useState("");
+  const [batchMode, setBatchMode] = useState(false);
   const toggleGroup = (key: string) =>
     setOpenGroups((current) => {
       const next = new Set(current);
@@ -106,60 +107,20 @@ export function RequestWorkflowScreen({
   const selectedRequest = scopedRequests.find(
     (request) => request.id === selectedRequestId,
   );
-  async function deliverAll(group: (typeof groups)[number]) {
-    const deliverable = group.requests.filter(
-      (request) =>
-        request.status === "Aprovada" ||
-        (["Em separação", "Em entrega"].includes(request.status) &&
-          request.fulfilledBy === accountId),
-    );
-    if (!deliverable.length) {
-      setBulkMessage(
-        "Nenhuma requisição deste solicitante está disponível para você entregar.",
-      );
-      return;
-    }
-    if (
-      !window.confirm(
-        `Entregar ${deliverable.length} requisição(ões) de ${group.person}? ` +
-          "O código e a quantidade de cada item serão considerados conferidos e o estoque será baixado.",
-      )
-    )
-      return;
+  async function claimAll(group: (typeof groups)[number]) {
+    const claimable = group.requests.filter((request) => request.status === "Aprovada");
     setBulkBusy(true);
     setBulkMessage("");
     let done = 0;
     try {
-      for (const request of deliverable) {
-        if (request.status === "Aprovada")
-          await runAction({ type: "claimRequest", id: request.id });
-        if (request.status !== "Em entrega") {
-          const prepared = await runAction({
-            type: "preparePick",
-            id: request.id,
-            qrCode: request.code,
-            confirmedQuantity: request.quantity,
-          });
-          await runAction({
-            type: "confirmPick",
-            id: request.id,
-            qrCode: request.code,
-            confirmedQuantity: request.quantity,
-            confirmation: String(prepared?.confirmation ?? ""),
-          });
-        }
-        await runAction({
-          type: "changeRequestStatus",
-          id: request.id,
-          status: "Entregue",
-        });
+      for (const request of claimable) {
+        await runAction({ type: "claimRequest", id: request.id });
         done += 1;
       }
-      setBulkMessage(`${done} requisição(ões) entregue(s).`);
-      setSelectedGroupKey(null);
+      setBulkMessage(`${done} requisição(ões) assumida(s) para separação.`);
     } catch (error) {
       setBulkMessage(
-        `${done} de ${deliverable.length} entregue(s). Interrompido na #${deliverable[done].id}: ${
+        `${done} de ${claimable.length} assumida(s). Falha na #${claimable[done].id}: ${
           error instanceof Error ? error.message : "falha na operação."
         }`,
       );
@@ -343,7 +304,10 @@ export function RequestWorkflowScreen({
                 <button
                   className={styles.requesterAction}
                   type="button"
-                  onClick={() => setSelectedGroupKey(group.key)}
+                  onClick={() => {
+                    setBatchMode(false);
+                    setSelectedGroupKey(group.key);
+                  }}
                 >
                   {role === "lider"
                     ? "Ver para aprovação (" + group.requests.length + ")"
@@ -399,52 +363,112 @@ export function RequestWorkflowScreen({
       </section>
       <DashboardDialog
         open={Boolean(selectedGroup)}
-        title={selectedGroup ? `Pedidos de ${selectedGroup.person}` : "Pedidos"}
+        title={
+          selectedGroup
+            ? batchMode
+              ? `Entrega em lote · ${selectedGroup.person}`
+              : `Pedidos de ${selectedGroup.person}`
+            : "Pedidos"
+        }
         onClose={() => {
           setSelectedGroupKey(null);
+          setBatchMode(false);
           setBulkMessage("");
         }}
       >
-        {selectedGroup && (
+        {selectedGroup && batchMode ? (
           <>
-            <p>
-              {selectedGroup.requests.length} pedidos agrupados. Toque em uma
-              requisição para abrir os detalhes completos.
-            </p>
-            {role === "almoxarifado" && !history && (
-              <div className={styles.bulkBar}>
+            <div className={styles.bulkBar}>
+              <button
+                className="button secondary"
+                type="button"
+                onClick={() => {
+                  setBatchMode(false);
+                  setBulkMessage("");
+                }}
+              >
+                ← Voltar à lista
+              </button>
+              {selectedGroup.requests.some((request) => request.status === "Aprovada") && (
                 <button
                   className="button primary"
                   type="button"
                   disabled={bulkBusy}
-                  onClick={() => void deliverAll(selectedGroup)}
+                  onClick={() => void claimAll(selectedGroup)}
                 >
-                  {bulkBusy ? "Entregando…" : "Entregar todas as requisições"}
+                  {bulkBusy
+                    ? "Assumindo…"
+                    : `Pegar todas para entrega (${selectedGroup.requests.filter((request) => request.status === "Aprovada").length})`}
                 </button>
-                {bulkMessage && <p role="status">{bulkMessage}</p>}
-              </div>
-            )}
+              )}
+              {bulkMessage && <p role="status">{bulkMessage}</p>}
+              <p>
+                Confira o código, informe a quantidade e confirme a retirada de
+                cada item; depois confirme a entrega. Os itens entregues saem
+                desta lista automaticamente.
+              </p>
+            </div>
             <div className={styles.groupOperations}>
               {selectedGroup.requests.map((request) => (
-                <article className={styles.groupOperationItem} key={request.id}>
+                <article
+                  className={styles.groupOperationItem}
+                  key={request.id}
+                  data-priority={request.priority}
+                >
                   <h3>#{request.id} · {request.material}</h3>
                   <p>
-                    {request.code} · {request.quantity} peças · {request.block} · {request.status} · {request.priority}
+                    {request.code} · {request.quantity} peças · {request.block} · {request.priority}
                   </p>
-                  <button
-                    className="button secondary"
-                    type="button"
-                    onClick={() => {
-                      setSelectedGroupKey(null);
-                      setSelectedRequestId(request.id);
-                    }}
-                  >
-                    Abrir requisição
-                  </button>
+                  <RequestOperations
+                    key={request.id}
+                    id={request.id}
+                    role={role}
+                    request={request}
+                  />
                 </article>
               ))}
             </div>
           </>
+        ) : (
+          selectedGroup && (
+            <>
+              <p>
+                {selectedGroup.requests.length} pedidos agrupados. Toque em uma
+                requisição para abrir os detalhes completos.
+              </p>
+              {role === "almoxarifado" && !history && (
+                <div className={styles.bulkBar}>
+                  <button
+                    className="button primary"
+                    type="button"
+                    onClick={() => setBatchMode(true)}
+                  >
+                    Entregar todas as requisições
+                  </button>
+                </div>
+              )}
+              <div className={styles.groupOperations}>
+                {selectedGroup.requests.map((request) => (
+                  <article className={styles.groupOperationItem} key={request.id}>
+                    <h3>#{request.id} · {request.material}</h3>
+                    <p>
+                      {request.code} · {request.quantity} peças · {request.block} · {request.status} · {request.priority}
+                    </p>
+                    <button
+                      className="button secondary"
+                      type="button"
+                      onClick={() => {
+                        setSelectedGroupKey(null);
+                        setSelectedRequestId(request.id);
+                      }}
+                    >
+                      Abrir requisição
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </>
+          )
         )}
       </DashboardDialog>
       <DashboardDialog
