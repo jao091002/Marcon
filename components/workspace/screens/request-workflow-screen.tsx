@@ -239,25 +239,35 @@ export function RequestWorkflowScreen({
           {groups.map((group) => (
             <section className={styles.requesterGroup} key={group.key}>
               <div className={styles.requesterGroupHeading}>
-                <div>
+                <span className={styles.requesterAvatar} aria-hidden="true">
+                  {group.person
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((part) => part[0])
+                    .join("")
+                    .toLocaleUpperCase("pt-BR")}
+                </span>
+                <div className={styles.requesterIdentity}>
                   <h2>{group.person}</h2>
                   <p>
                     {group.requests.length}{" "}
                     {group.requests.length === 1 ? "requisição" : "requisições"}
-                    {group.requests.some((request) => request.batchId) &&
-                      " · itens dos carrinhos enviados"}
+                    {group.requests.some((request) => request.priority === "Urgente") &&
+                      ` · ${group.requests.filter((request) => request.priority === "Urgente").length} urgente(s)`}
                   </p>
                 </div>
                 <button
-                  className="button secondary"
+                  className={styles.requesterAction}
                   type="button"
                   onClick={() => setSelectedGroupKey(group.key)}
                 >
                   {role === "lider"
-                    ? "Ver para aprovação (" + group.requests.length + ")"
+                    ? "Aprovar"
                     : role === "almoxarifado"
-                      ? "Ver para entrega (" + group.requests.length + ")"
-                      : "Ver todos (" + group.requests.length + ")"}
+                      ? "Entregar"
+                      : "Ver todos"}
+                  <span aria-hidden="true">→</span>
                 </button>
               </div>
               <div className={styles.requesterItems}>
@@ -267,24 +277,26 @@ export function RequestWorkflowScreen({
                     key={r.id}
                     data-request-id={r.id}
                     className={styles.requesterPreviewItem}
+                    data-priority={r.priority}
                     onClick={() => {
                       setSelectedGroupKey(null);
                       setSelectedRequestId(r.id);
                     }}
                   >
-                    <span className={styles.cardTop}>
-                      <strong>#{r.id}</strong>
-                      {badge(r.status)}
-                      <strong className={`${styles.priority} ${styles[`priority${r.priority}`]}`}>
+                    <span className={styles.itemMain}>
+                      <strong className={styles.requesterItemMaterial}>{r.material}</strong>
+                      <span className={styles.itemMeta}>
+                        #{r.id} · {r.code} · {r.quantity} peças
+                        {r.requestedUnit === "box" && ` (${r.requestedAmount} cx de ${r.packSizeAtRequest})`}
+                        {" · "}{r.block}
+                      </span>
+                    </span>
+                    <span className={styles.itemSide}>
+                      <span className={`${styles.priorityDot} ${styles[`priority${r.priority}`]}`}>
                         {r.priority}
-                      </strong>
+                      </span>
+                      {badge(r.status)}
                     </span>
-                    <strong className={styles.requesterItemMaterial}>{r.material}</strong>
-                    <span>
-                      {r.code} · {r.quantity} peças
-                      {r.requestedUnit === "box" && ` (${r.requestedAmount} caixas de ${r.packSizeAtRequest})`}
-                    </span>
-                    <span>{r.block} · {r.sector || "Setor não informado"}</span>
                   </button>
                 ))}
                 {group.requests.length > 3 && (
@@ -293,7 +305,7 @@ export function RequestWorkflowScreen({
                     className={styles.requesterMore}
                     onClick={() => setSelectedGroupKey(group.key)}
                   >
-                    + {group.requests.length - 3} pedidos · abrir grupo completo
+                    + {group.requests.length - 3} {group.requests.length - 3 === 1 ? "pedido" : "pedidos"} · ver todos
                   </button>
                 )}
               </div>
